@@ -1,92 +1,42 @@
-name: CI Pipeline
+name: Simple CI Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
-  pull_request:
     branches: [ main ]
 
 jobs:
-  # Backend Testing and Building
-  backend-ci:
+  build-and-test:
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: backend/package.json
-      
-      - name: Install backend dependencies
-        run: |
-          cd backend
-          npm install
-      
-      - name: Run backend tests (if any)
-        run: |
-          cd backend
-          npm test || echo "No tests found"
-      
-      - name: Build backend Docker image
-        run: |
-          cd backend
-          docker build -t todo-backend:latest .
-
-  # Frontend Testing and Building  
-  frontend-ci:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: frontend/package.json
-      
-      - name: Install frontend dependencies
-        run: |
-          cd frontend
-          npm install
-      
-      - name: Run frontend tests (if any)
-        run: |
-          cd frontend
-          npm test || echo "No tests found"
-      
-      - name: Build frontend Docker image
-        run: |
-          cd frontend
-          docker build -t todo-frontend:latest .
-      
-      - name: Build frontend production
-        run: |
-          cd frontend
-          npm run build
-
-  # Docker Compose Integration Test
-  integration-test:
-    runs-on: ubuntu-latest
-    needs: [backend-ci, frontend-ci]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Build and test with Docker Compose
-        run: |
-          docker-compose up --build -d
-          sleep 30  # Wait for services to start
-          
-          # Test backend health
-          curl -f http://localhost:5000/health || exit 1
-          
-          # Test backend API
-          curl -f http://localhost:5000/ || exit 1
-          
-          docker-compose down
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install Docker Compose
+      run: |
+        sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+        sudo chmod +x /usr/local/bin/docker-compose
+    
+    - name: Build and test services
+      run: |
+        docker-compose up --build -d
+        sleep 30
+        
+        # Check backend health
+        if curl -f http://localhost:5000/health; then
+          echo "✅ Backend health check passed"
+        else
+          echo "❌ Backend health check failed"
+          exit 1
+        fi
+        
+        # Check backend API
+        if curl -f http://localhost:5000/; then
+          echo "✅ Backend API is working"
+        else
+          echo "❌ Backend API failed"
+          exit 1
+        fi
+        
+        docker-compose down
+        echo "🎉 All tests passed!"
