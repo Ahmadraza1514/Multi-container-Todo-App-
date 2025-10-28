@@ -1,0 +1,33 @@
+name: CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # Manual trigger allow
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install Docker Compose
+      run: |
+        sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+        sudo chmod +x /usr/local/bin/docker-compose
+    
+    - name: Deploy to production
+      run: |
+        echo "🚀 Deploying application..."
+        docker-compose down
+        docker-compose up --build -d
+        echo "✅ Deployment completed successfully!"
+        
+    - name: Verify deployment
+      run: |
+        sleep 20
+        curl -f http://localhost:5000/health && echo "Health check passed"
+        curl -f http://localhost:5000/ && echo "API is working"
